@@ -50,3 +50,66 @@ fake_review_row = review_match.iloc[0]
 fake_review_text = fake_review_row['text']
 print(f"Fake review : {fake_review_text}")  
 print(f" FLAG2: {flag2}")
+
+# Computing Flag 3
+
+# Use the specific asin value we found initially.
+target_asin = '0007144350'
+
+# Extracted from STU008
+numeric_id = "008"
+
+# Data preparation.
+
+# Filtering the reviews.
+mask = (df_reviews['parent_asin'] == target_asin) | (df_reviews['asin'] == target_asin)
+book_reviews = df_reviews[mask].copy()
+book_reviews['text'] = book_reviews['text'].fillna('')
+
+# Logic for labelling.
+superlatives = ['best', 'amazing', 'perfect', 'awesome', 'excellent', 'masterpiece', 'wonderful', 'incredible']
+
+def label_review(row):
+    text = str(row['text']).lower()
+    word_count = len(text.split())
+    
+    # Suspicious: 5star + short(less than 15 words) + superlatives
+    if row['rating'] == 5.0 and word_count < 15 and any(s in text for s in superlatives):
+        return 1 
+    # Genuine: 5-star + detailed (more than 40 words)
+    elif row['rating'] == 5.0 and word_count > 40:
+        return 0 
+    return -1
+
+# Applying the labeling and filter
+book_reviews['label'] = book_reviews.apply(label_review, axis=1)
+train_df = book_reviews[book_reviews['label'] != -1].copy()    
+
+# Model training.
+vectorizer = TfidfVectorizer(stop_words='english', max_features=500)
+X = vectorizer.fit_transform(train_df['text'])
+y = train_df['label']
+
+model = LogisticRegression()
+model.fit(X, y)
+
+# SHAP Analysis
+# Analyze genuine vs suspicious.
+explainer = shap.LinearExplainer(model, X, feature_perturbation="interventional")
+shap_values = explainer.shap_values(X)
+feature_names = vectorizer.get_feature_names_out()
+
+# Identifying top 3 words reducing suspicion (most negative SHAP values for class 1).
+mean_shap = np.mean(shap_values, axis=0)
+top_indices = np.argsort(mean_shap)[:3] 
+top_words = [feature_names[i] for i in top_indices]
+
+print(f"Top 3 words that reduce suspicion: {top_words}")
+
+# Generating FLAG 3.
+
+# Concatenate words + numeric ID -> SHA256 -> First 10 chars 
+combined_string = "".join(top_words) + numeric_id
+flag3_hash = hashlib.sha256(combined_string.encode()).hexdigest()
+flag3_final = f"FLAG3{{{flag3_hash[:10]}}}"
+print(f"FLAG3: {flag3_final}")
