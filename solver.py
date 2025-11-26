@@ -43,3 +43,10 @@ flag1_input = title_no_spaces[:8]
 
 flag1 = hashlib.sha256(flag1_input.encode()).hexdigest()
 print(f"FLAG1: {flag1}")
+
+# Computing Flag2( The fake review has already been located in the aove cells)
+flag2 = your_hash
+fake_review_row = review_match.iloc[0]
+fake_review_text = fake_review_row['text']
+print(f"Fake review : {fake_review_text}")  
+print(f" FLAG2: {flag2}")
